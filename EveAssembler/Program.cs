@@ -1,9 +1,25 @@
 ﻿namespace EveAssembler;
 
 internal class Program {
-    private static void Main(string[] args) {
-        Console.WriteLine("Hello, Assembler!");
+#if DEBUG
+    private const bool isRelease = false;
+#else
+    private const bool isRelease = true;
+#endif
 
+    private static void Main() {
+
+        bool useArgs = Environment.GetCommandLineArgs().Length > 1 || isRelease;
+
+        if (!useArgs) {
+            Console.WriteLine("Running in test environment - not using arguments.");
+            DebugMain();
+        } else {
+            ReleaseMain();
+        }
+    }
+
+    private static void DebugMain() {
         var asm = new Assembler();
         var code = """
             ldi r1, 0; current address
@@ -50,5 +66,21 @@ internal class Program {
         foreach (var line in assembledLines) {
             Console.WriteLine(line.Item1.PadRight(padSz) + "0x" + line.Item2.ToString("X4"));
         }
+    }
+
+    private static void ReleaseMain() {
+        Console.WriteLine("Reading args...");
+        var args = CliArgs.Get();
+        var code = File.ReadAllText(args.SourceFilePath);
+        var asm = new Assembler();
+        Console.WriteLine("Assembling...");
+        var assembledLines = asm.Assemble(code);
+        var outputBytes = assembledLines.SelectMany(x => new[] { (byte)(x.Item2 >> 8), (byte)(x.Item2 & 0xFF) }).ToArray();
+        var outDir = new FileInfo(args.DestFilePath).DirectoryName ?? throw new Exception("should not be null");
+        if (!Directory.Exists(outDir))
+            Directory.CreateDirectory(outDir);
+
+        File.WriteAllBytes(args.DestFilePath, outputBytes);
+        Console.WriteLine($"Done, wrote {outputBytes.Length} bytes.");
     }
 }
