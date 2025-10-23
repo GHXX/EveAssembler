@@ -75,23 +75,22 @@ internal class Assembler {
         Add0Arg("nop", 0);
         Add0Arg("hlt", 1);
         ushort nextOpcode = 2;
-        foreach (var op in "add,sub,or,nor,and,nand,xor,xnor".Split(',')) {
+        foreach (var op in "add,sub,or,and,xor".Split(',')) {
             Add3RArg(op, nextOpcode++);
         }
-        Add2RArg("lsh", 10);
-        Add2RArg("rsh", 11);
+        Add2RArg("lsh", 7);
+        Add2RArg("rsh", 8);
 
-        Add1R1BImmArg("ldi", 12);
-        Add1BImmArg("jmp", 13, false);
-        Add1R1BImmArg("addi", 14);
-        Add1R1BImmArg("sui", 15);
-        Add3b1BImmArg("brh", 16); // replace with pseudo instructions
-        Add1BImmArg("jmpr", 17, true);
-        Add1BImmArg("call", 18, false);
-        Add0Arg("ret", 19);
-        Add1R1BImmArg("lui", 20);
-        Add2RArg("sb", 21);
-        Add2RArg("lb", 22);
+        Add1BImmArg("jmp", 9, false);
+        Add1R1BImmArg("lui", 10);
+        Add1R1BImmArg("inci", 11);
+        Add1R1BImmArg("sui", 12);
+        Add3b1BImmArg("brh", 13); // replace with pseudo instructions
+        Add1BImmArg("jmpr", 14, true);
+        Add1BImmArg("call", 15, false);
+        Add0Arg("ret", 16);
+        Add2RArg("sb", 17);
+        Add2RArg("lb", 18);
 
         Assert(instructionMap.Values.Count == instructionMap.Values.Distinct().Count(), "duplicate opcodes appear to exist!");
     }
