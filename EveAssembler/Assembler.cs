@@ -119,7 +119,7 @@ internal class Assembler {
         var args = splitted.Length <= 1 ? [] : splitted[1].Split(',', StringSplitOptions.TrimEntries);
 
 
-        string GetJumpOffsetString(int jmpArgIdx) => stage == AssemblerStage.ResolveJumpLabels ? "0" : (((-currInstructionLine + jumpLabels[args[jmpArgIdx]] - 1) * INSTRUCTION_SIZE_BYTES).ToString()); // offset seems wrong?
+        string GetJumpOffsetString(int jmpArgIdx) => stage == AssemblerStage.ResolveJumpLabels ? "0" : ((jumpLabels[args[jmpArgIdx]] - currInstructionLine * INSTRUCTION_SIZE_BYTES).ToString()); // offset seems wrong?
 
         if (pseudoInstructionMap.TryGetValue(opcode, out var map)) {
             foreach (var ins in map.Invoke(args)) {
