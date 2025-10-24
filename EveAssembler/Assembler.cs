@@ -49,6 +49,7 @@ internal class Assembler {
             Assert(input[0] == 'r');
             byte regId = byte.Parse(input[1..]);
             AssertImpl(!allowZeroRegister, regId != 0, "The zero register is invalid in this situation");
+            Assert(regId <= 7 && regId >= 0);
             return regId;
         }
 
