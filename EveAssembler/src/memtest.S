@@ -1,4 +1,4 @@
-    ldi r1, 42; current address
+    ldi r1, 46; current address
     ldi r2, 2048; max address to check (exclusive)
     ; ---- write data ----
 writeLp:; write address to each cell
@@ -10,7 +10,7 @@ writeLp:; write address to each cell
     jgz writeLp; jump if r1 < r2
 
     ; ---- check data ----
-    ldi r1, 42; current address
+    ldi r1, 46; current address
 readLp:; read and check data from each cell
     lb r3, r1; read ram data
 
