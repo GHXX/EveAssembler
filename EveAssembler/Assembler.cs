@@ -5,6 +5,8 @@ internal class Assembler {
     // ushort (msb) opcode..operands (lsb)
     private static readonly Dictionary<string, Func<string[], ushort>> instructionMap = [];
 
+    private static readonly Dictionary<string, Func<string[], string[]>> pseudoInstructionMap = []; // args -> lines
+
     /*
      * Registers: 0-7, 0 is hardwired to zero
      * 
@@ -12,39 +14,35 @@ internal class Assembler {
 
     public Assembler() {
         void Add0Arg(string opName, ushort opcode) => instructionMap.Add(opName, args => {
-            opcode <<= 11;
             Assert(args.Length == 0, $"Operation {opName} takes no arguments but received {args.JoinBy(",")}");
-            return opcode;
+            return (ushort)(opcode << 11);
         });
 
         void Add3RArg(string opName, ushort opcode) => instructionMap.Add(opName, args => {
-            opcode <<= 11;
             Assert(args.Length == 3, $"Operation {opName} takes 3 arguments but received {args.JoinBy(",")}");
-            return (ushort)(opcode | ParseRegister(args[2]) << 8 | ParseRegister(args[0]) << 4 | ParseRegister(args[1]));
+            return (ushort)(opcode << 11 | ParseRegister(args[2]) << 8 | ParseRegister(args[0]) << 4 | ParseRegister(args[1]));
         });
 
         void Add2RArg(string opName, ushort opcode) => instructionMap.Add(opName, args => {
-            opcode <<= 11;
             Assert(args.Length == 2, $"Operation {opName} takes 2 arguments but received {args.JoinBy(",")}");
-            return (ushort)(opcode | ParseRegister(args[1]) << 8 | ParseRegister(args[0]) << 4);
+            return (ushort)(opcode << 11 | ParseRegister(args[1]) << 8 | ParseRegister(args[0]) << 4);
         });
 
-        void Add1R1BImmArg(string opName, ushort opcode) => instructionMap.Add(opName, args => {
-            opcode <<= 11;
-            Assert(args.Length == 2, $"Operation {opName} takes 1 register argument and 1 immediate but received {args.JoinBy(",")}");
-            return (ushort)(opcode | ParseRegister(args[0]) << 8 | ParseImmediate(args[1], true));
-        });
+        void Add1R1BImmArg(string opName, ushort opcode) {
+            instructionMap.Add(opName, args => {
+                Assert(args.Length == 2, $"Operation {opName} takes 1 register argument and 1 immediate but received {args.JoinBy(",")}");
+                return (ushort)(opcode << 11 | ParseRegister(args[0]) << 8 | ParseImmediate(args[1], true));
+            });
+        }
 
         void Add1BImmArg(string opName, ushort opcode, bool isImmediateSigned) => instructionMap.Add(opName, args => {
-            opcode <<= 11;
             Assert(args.Length == 1, $"Operation {opName} takes 1 immediate but received {args.JoinBy(",")}");
-            return (ushort)(opcode | ParseImmediate(args[0], isImmediateSigned));
+            return (ushort)(opcode << 11 | ParseImmediate(args[0], isImmediateSigned));
         });
 
         void Add3b1BImmArg(string opName, ushort opcode) => instructionMap.Add(opName, args => {
-            opcode <<= 11;
             Assert(args.Length == 2, $"Operation {opName} takes 2 immediate but received {args.JoinBy(",")}");
-            return (ushort)(opcode | ParseBitImmediate(args[0], 3) << 8 | ParseImmediate(args[1], true));
+            return (ushort)(opcode << 11 | ParseBitImmediate(args[0], 3) << 8 | ParseImmediate(args[1], true));
         });
 
         static byte ParseRegister(string input, bool allowZeroRegister = true) {
@@ -92,7 +90,68 @@ internal class Assembler {
         Add2RArg("sb", 17);
         Add2RArg("lb", 18);
 
-        Assert(instructionMap.Values.Count == instructionMap.Values.Distinct().Count(), "duplicate opcodes appear to exist!");
+        void AddPseudoInstruction(string instructionName, Func<string[], string[]> argsToInstructions) {
+            pseudoInstructionMap.Add(instructionName, argsToInstructions);
+        }
+
+        AddPseudoInstruction("ldi", args => {
+            Assert(args.Length == 2);
+            var reg = ParseRegister(args[0]);
+            var num = ParsePotentialHexNumber(args[1]);
+            Assert(short.MinValue <= num && num <= ushort.MaxValue);
+            byte upper = (byte)(num >> 8);
+            byte lower = (byte)(num & 0xFF);
+
+            // zero the register, then lui upper, then inci lower
+            var r = $"r{reg}";
+            List<string> rv = [$"lui {r}, 0x{upper:X2}"];
+            if (lower != 0)
+                rv.Add($"inci {r}, 0x{lower:X2}");
+            return rv.ToArray();
+        });
+
+        var union = instructionMap.Select(x => x.Key).Concat(pseudoInstructionMap.Select(x => x.Key)).ToArray();
+        Assert(union.Length == union.Distinct().Count(), "duplicate opcodes appear to exist!");
+    }
+
+    private static void AssembleInstruction(Dictionary<string, int> jumpLabels, string line, List<(string code, ushort bytes)> resultAssembledCode, AssemblerStage stage) {
+        var currInstructionLine = resultAssembledCode.Count;
+
+        var splitted = line.Split(' ', 2);
+        var opcode = splitted[0];
+        var args = splitted.Length <= 1 ? [] : splitted[1].Split(',', StringSplitOptions.TrimEntries);
+
+
+        string GetJumpOffsetString(int jmpArgIdx) => stage == AssemblerStage.ResolveJumpLabels ? "0" : (((-currInstructionLine + jumpLabels[args[jmpArgIdx]] - 1) * INSTRUCTION_SIZE_BYTES).ToString());
+
+        if (pseudoInstructionMap.TryGetValue(opcode, out var map)) {
+            foreach (var ins in map.Invoke(args)) {
+                AssembleInstruction(jumpLabels, ins, resultAssembledCode, stage);
+            }
+            return; // already done processing it
+        }
+
+
+        ushort resultBytes;
+        switch (opcode) {
+            case "jmp": // operand is the target label
+                var jmprFunc = instructionMap["jmpr"];
+                resultBytes = jmprFunc.Invoke([GetJumpOffsetString(0)]);
+                break;
+            case "jgz":
+                var brhFunc = instructionMap["brh"];
+                resultBytes = brhFunc.Invoke(["0", GetJumpOffsetString(0)]);
+                break;
+            case "jne":
+                var brhFunc2 = instructionMap["brh"];
+                resultBytes = brhFunc2.Invoke(["1", GetJumpOffsetString(0)]);
+                break;
+            default:
+                var func = instructionMap[opcode];
+                resultBytes = func.Invoke(args);
+                break;
+        }
+        resultAssembledCode.Add((opcode.PadRight(4) + $" {args.JoinBy(", ")}", resultBytes));
     }
 
 
@@ -121,7 +180,6 @@ internal class Assembler {
 
         // Resolve label addresses
         var jumpLabels = new Dictionary<string, int>(); // lableName, positionAddress
-        int currInstructionLine = 0;
         for (int i = 0; i < instructionLines.Length; i++) {
             string e;
             while (true) {
@@ -129,43 +187,19 @@ internal class Assembler {
                 var colonPos = e.IndexOf(":");
                 if (colonPos == -1) break;
                 var labelName = e[..colonPos].Trim();
-                jumpLabels.Add(labelName, currInstructionLine * INSTRUCTION_SIZE_BYTES);
+                jumpLabels.Add(labelName, assembledCode.Count * INSTRUCTION_SIZE_BYTES);
                 instructionLines[i] = e[(colonPos + 1)..];
             }
-            if (!string.IsNullOrWhiteSpace(e))
-                currInstructionLine++;
+            if (!string.IsNullOrWhiteSpace(e)) {
+                AssembleInstruction(jumpLabels, e, assembledCode, AssemblerStage.ResolveJumpLabels);
+            }
         }
+        assembledCode.Clear();
 
         instructionLines = instructionLines.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
         // Assemble
-        currInstructionLine = 0;
-        var brhFunc = instructionMap["brh"];
-        var jmprFunc = instructionMap["jmpr"];
         foreach (var inputLine in instructionLines) {
-            string line = inputLine;
-            var splitted = line.Split(' ', 2);
-            var opcode = splitted[0];
-            var args = splitted.Length <= 1 ? [] : splitted[1].Split(',', StringSplitOptions.TrimEntries);
-
-            string GetJumpOffsetString(int jmpArgIdx) => ((-currInstructionLine + jumpLabels[args[jmpArgIdx]] - 1) * INSTRUCTION_SIZE_BYTES).ToString();
-            ushort resultBytes;
-            switch (opcode) {
-                case "jmp": // operand is the target label
-                    resultBytes = jmprFunc.Invoke([GetJumpOffsetString(0)]);
-                    break;
-                case "jgz":
-                    resultBytes = brhFunc.Invoke(["0",GetJumpOffsetString(0)]);
-                    break;
-                case "jne":
-                    resultBytes = brhFunc.Invoke(["1",GetJumpOffsetString(0)]);
-                    break;
-                default:
-                    var func = instructionMap[opcode];
-                    resultBytes = func.Invoke(args);
-                    break;
-            }
-            assembledCode.Add((opcode.PadRight(4) + $" {args.JoinBy(", ")}", resultBytes));
-            currInstructionLine++;
+            AssembleInstruction(jumpLabels, inputLine, assembledCode, AssemblerStage.Emit);
         }
 
         // prepend the labels to the asm dump
@@ -177,5 +211,10 @@ internal class Assembler {
         }
 
         return assembledCode.ToArray();
+    }
+
+    private enum AssemblerStage {
+        ResolveJumpLabels,
+        Emit
     }
 }
