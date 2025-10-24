@@ -73,11 +73,9 @@ internal class Assembler {
         Add0Arg("nop", 0);
         Add0Arg("hlt", 1);
         ushort nextOpcode = 2;
-        foreach (var op in "add,sub,or,and,xor".Split(',')) {
+        foreach (var op in "add,sub,or,and,xor,lsh,rsh".Split(',')) {
             Add3RArg(op, nextOpcode++);
         }
-        Add2RArg("lsh", 7);
-        Add2RArg("rsh", 8);
 
         Add1BImmArg("jmp", 9, false);
         Add1R1BImmArg("lui", 10);
