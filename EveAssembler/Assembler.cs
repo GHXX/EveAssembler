@@ -78,12 +78,10 @@ internal class Assembler {
             Add3RArg(op, nextOpcode++);
         }
 
-        Add1BImmArg("jmp", 9, false);
         Add1R1BImmArg("lui", 10);
         Add1R1BImmArg("inci", 11);
         Add1R1BImmArg("sui", 12);
         Add3b1BImmArg("brh", 13); // replace with pseudo instructions
-        Add1BImmArg("jmpr", 14, true);
         Add1BImmArg("call", 15, false);
         Add0Arg("ret", 16);
         Add2RArg("sb", 17);
@@ -121,7 +119,7 @@ internal class Assembler {
         var args = splitted.Length <= 1 ? [] : splitted[1].Split(',', StringSplitOptions.TrimEntries);
 
 
-        string GetJumpOffsetString(int jmpArgIdx) => stage == AssemblerStage.ResolveJumpLabels ? "0" : (((-currInstructionLine + jumpLabels[args[jmpArgIdx]] - 1) * INSTRUCTION_SIZE_BYTES).ToString());
+        string GetJumpOffsetString(int jmpArgIdx) => stage == AssemblerStage.ResolveJumpLabels ? "0" : (((-currInstructionLine + jumpLabels[args[jmpArgIdx]] - 1) * INSTRUCTION_SIZE_BYTES).ToString()); // offset seems wrong?
 
         if (pseudoInstructionMap.TryGetValue(opcode, out var map)) {
             foreach (var ins in map.Invoke(args)) {
@@ -131,19 +129,17 @@ internal class Assembler {
         }
 
 
+        var brhFunc = instructionMap["brh"];
         ushort resultBytes;
         switch (opcode) {
             case "jmp": // operand is the target label
-                var jmprFunc = instructionMap["jmpr"];
-                resultBytes = jmprFunc.Invoke([GetJumpOffsetString(0)]);
+                resultBytes = brhFunc.Invoke(["7", GetJumpOffsetString(0)]);
                 break;
             case "jgz":
-                var brhFunc = instructionMap["brh"];
-                resultBytes = brhFunc.Invoke(["0", GetJumpOffsetString(0)]);
+                resultBytes = brhFunc.Invoke(["2", GetJumpOffsetString(0)]);
                 break;
-            case "jne":
-                var brhFunc2 = instructionMap["brh"];
-                resultBytes = brhFunc2.Invoke(["1", GetJumpOffsetString(0)]);
+            case "jnz":
+                resultBytes = brhFunc.Invoke(["4", GetJumpOffsetString(0)]);
                 break;
             default:
                 var func = instructionMap[opcode];

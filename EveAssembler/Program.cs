@@ -40,7 +40,7 @@ internal class Program {
 
             ; if data does not match
             sub r0, r3, r1
-            jne failed
+            jnz failed
 
             ; check/step loop counter
             inci r1, 1
