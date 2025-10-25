@@ -45,7 +45,7 @@ internal class Program {
             ; check/step loop counter
             inci r1, 2
             sub r0, r2, r1
-            jgz writeLp; jump if  r1 < r2            
+            jgz readLp; jump if  r1 < r2            
 
             jmp ramOk
 

@@ -21,7 +21,7 @@ readLp:; read and check data from each cell
     ; check/step loop counter
     inci r1, 2
     sub r0, r2, r1
-    jgz writeLp; jump if  r1 < r2            
+    jgz readLp; jump if  r1 < r2            
 
     jmp ramOk
 
