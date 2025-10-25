@@ -23,10 +23,10 @@ internal class Program {
         var asm = new Assembler();
         var code = """
             ldi r1, 48; current address
-            ldi r2, 2047; max address to check (exclusive)
+            ldi r2, 4095; max address to check (exclusive)
             ; ---- write data ----
         writeLp:; write address to each cell
-            sb r1, r1; sb rS2, rS1 - takes value of RS2 and stores at address RS1
+            sw r1, r1; sb rS2, rS1 - takes value of RS2 and stores at address RS1
 
         ; check/step loop counter
             inci r1, 2
@@ -36,7 +36,7 @@ internal class Program {
             ; ---- check data ----
             ldi r1, 48; current address
         readLp:; read and check data from each cell
-            lb r3, r1; read ram data
+            lw r3, r1; read ram data
 
             ; if data does not match
             sub r0, r3, r1
