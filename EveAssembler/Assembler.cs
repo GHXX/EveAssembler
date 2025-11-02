@@ -84,8 +84,8 @@ internal class Assembler {
         Add3b1BImmArg("brh", 13); // replace with pseudo instructions
         Add1BImmArg("call", 15, false);
         Add0Arg("ret", 16);
-        Add2RArg("sw", 17);
-        Add2RArg("lw", 18);
+        Add2RArg("sb", 17);
+        Add2RArg("lb", 18);
 
         void AddPseudoInstruction(string instructionName, Func<string[], string[]> argsToInstructions) {
             pseudoInstructionMap.Add(instructionName, argsToInstructions);
