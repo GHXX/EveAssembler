@@ -37,9 +37,10 @@ internal class Program {
         checkLp:
             sb r1, r1 ; store r1 in r1
             lb r3, r1 ; r3=ram[r1]
-
+            ldi r5, 0xFF
+            and r5, r3, r5
             ; if data does not match
-            sub r0, r3, r1
+            sub r0, r3, r5
             jnz failed
         
             inci r1, 2
